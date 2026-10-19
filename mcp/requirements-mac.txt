@@ -1,0 +1,8 @@
+# Installed with --no-deps: pyautogui's full dependency list pulls all of pyobjc (~100 MB).
+pyautogui==0.9.54
+pymsgbox
+pytweening
+pyscreeze
+pyobjc-core
+pyobjc-framework-Cocoa
+pyobjc-framework-Quartz
