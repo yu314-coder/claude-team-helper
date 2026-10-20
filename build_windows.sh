@@ -1,6 +1,6 @@
 #!/bin/zsh
-# Build the Windows version on this Mac with py2bin, then zip it.
-#   ./build_windows.sh            → dist/ClaudeTeamHelper-windows-x64.zip
+# Build the Windows version on this Mac with py2bin, as one self-extracting exe.
+#   ./build_windows.sh            → dist/ClaudeTeamHelper.exe (one file)
 # Needs: uv, python3 with pip, and py2bin (pip install python-to-binary, or set PY2BIN_SRC
 # to a python_to_binary checkout's src/ folder).
 set -e
@@ -54,10 +54,19 @@ rm -f $B/site-packages/PIL/_{avif,imagingft,webp,imagingcms,imagingtk,imagingmat
 rm -f $B/runtime/{sqlite3.dll,_sqlite3.pyd,_msi.pyd}
 find $B -name __pycache__ -type d -prune -exec rm -rf {} +
 
-# 5. Zip it up for the PC.
-rm -f dist/ClaudeTeamHelper-windows-x64.zip
-(cd $W && ditto -c -k --keepParent ClaudeTeamHelper ../../dist/ClaudeTeamHelper-windows-x64.zip)
-du -sh $W/ClaudeTeamHelper dist/ClaudeTeamHelper-windows-x64.zip
+# 5. Pack the folder into one self-extracting exe (py2bin's one-file stub). On first launch it
+#    unpacks to %LOCALAPPDATA%\py2bin\<hash> and runs from there afterwards.
+rm -f dist/ClaudeTeamHelper-windows-x64.zip dist/ClaudeTeamHelper.exe
+python3 - $B $W/icon.ico dist/ClaudeTeamHelper.exe <<'EOF'
+import sys
+from pathlib import Path
+from py2bin.onefile import create_onefile
+root, icon, out = map(Path, sys.argv[1:4])
+r = create_onefile(root, out, target="windows-x86_64", launcher=root / "runtime" / "ClaudeTeamHelper.exe",
+                   icon=icon, windows_windowed=True)
+print(f"one-file exe: {r.artifact} (payload sha256 {r.payload_sha256[:12]})")
+EOF
+du -sh $B dist/ClaudeTeamHelper.exe
 
 # Intermediate wheels are only needed during the build.
 rm -rf $W/wheels $W/src $W/icon_*.png

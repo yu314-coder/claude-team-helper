@@ -5,8 +5,8 @@ account without losing your setup.
 
 | | macOS | Windows |
 |---|---|---|
-| App | native SwiftUI, 1.3 MB | pywebview, built with py2bin: 28 MB folder / 13 MB zip |
-| Computer Control install | 15 MB venv (no download cache left behind) | nothing extra: the app carries its own Python |
+| App | native SwiftUI, 1.3 MB | one 12 MB `ClaudeTeamHelper.exe` (pywebview, built with py2bin) |
+| Computer Control install | 15 MB venv (no download cache left behind) | nothing extra: hard links to the app's own files |
 
 ## Account Sync
 
@@ -52,13 +52,18 @@ clipboard paste, clipboard restored), `press_keys`, `hold_key`, `mouse_button`, 
 
 ```bash
 ./build.sh            # macOS → build/Claude Team Helper.app
-./build_windows.sh    # Windows, on this Mac with py2bin → dist/ClaudeTeamHelper-windows-x64.zip
+./build_windows.sh    # Windows, on this Mac with py2bin → dist/ClaudeTeamHelper.exe
 ```
 
 `build_windows.sh` resolves Windows wheels with uv, freezes `windows/app.py` with py2bin
-(`PY2BIN_SRC` can point at a python_to_binary checkout), then drops Pillow codecs the app
-never loads. On the PC, unzip and run `runtime\ClaudeTeamHelper.exe`; **Install** copies it to
-`%LOCALAPPDATA%\Programs\ClaudeTeamHelper` and adds a Start menu shortcut.
+(`PY2BIN_SRC` can point at a python_to_binary checkout), drops Pillow codecs the app never
+loads, and packs it all into one self-extracting exe that carries its own Python.
+
+On the PC, just run `ClaudeTeamHelper.exe`. The first start unpacks it once into
+`%LOCALAPPDATA%\py2bin` (a few seconds); later starts reuse that. **Install** hard-links the
+unpacked files into `%LOCALAPPDATA%\Programs\ClaudeTeamHelper` (no second copy on disk),
+adds a Start menu shortcut and registers the MCP server. Unpacked copies of older versions
+are removed automatically, so updates don't pile up.
 
 ## Tests
 

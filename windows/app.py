@@ -208,6 +208,46 @@ def set_chat_registration(on: bool) -> None:
     tmp.replace(DESKTOP_CONFIG)
 
 
+APP_ID = "PythonToBinary.ClaudeTeamHelper"  # py2bin writes this into py2bin-freeze.json
+
+
+def install_files(src: Path) -> str:
+    """Puts the app in INSTALL_DIR, hard-linked to the unpacked one-file copy (same disk, so no
+    second copy on disk); a plain copy where links are not possible. Returns how it was done."""
+    if INSTALL_DIR.exists():
+        try:
+            shutil.rmtree(INSTALL_DIR)
+        except OSError:  # a running copy holds files open; move it aside, it is removed later
+            INSTALL_DIR.rename(INSTALL_DIR.with_name(f"{INSTALL_DIR.name}.old-{int(time.time())}"))
+    linked = [0, 0]
+
+    def link_or_copy(a: str, b: str) -> None:
+        try:
+            os.link(a, b)
+            linked[0] += 1
+        except OSError:
+            shutil.copy2(a, b)
+            linked[1] += 1
+
+    shutil.copytree(src, INSTALL_DIR, copy_function=link_or_copy, symlinks=True)
+    return "hard-linked, no extra space" if not linked[1] else f"copied {linked[1]} files"
+
+
+def cleanup_stale() -> None:
+    """Removes unpacked copies of older versions of this app and installs moved aside on update,
+    so updates never pile up. Other py2bin apps' copies are left alone."""
+    me = app_dir()
+    cache = Path(os.environ.get("PY2BIN_CACHE_DIR") or LOCALAPPDATA / "py2bin")
+    stale = [d for d in (cache.iterdir() if cache.is_dir() else []) if d.is_dir() and d.resolve() != me
+             and read_json(d / "py2bin-freeze.json").get("windows_app_user_model_id") == APP_ID]
+    stale += [d for d in INSTALL_DIR.parent.glob(INSTALL_DIR.name + ".old-*") if d.is_dir()]
+    for d in stale:
+        # Marker first: if files are in use and the delete stops halfway, the stub sees no
+        # marker and unpacks afresh instead of running a broken copy.
+        (d / ".py2bin-complete").unlink(missing_ok=True)
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def make_shortcut(target: Path) -> None:
     SHORTCUT.parent.mkdir(parents=True, exist_ok=True)
     ps = (f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{SHORTCUT}');"
@@ -287,8 +327,8 @@ class Api:
             src = app_dir()
             try:
                 if src != INSTALL_DIR.resolve():
-                    self._say(f"Copying the app to {INSTALL_DIR} …")
-                    shutil.copytree(src, INSTALL_DIR, dirs_exist_ok=True)
+                    how = install_files(src)
+                    self._say(f"Installed to {INSTALL_DIR} ({how}).")
                 make_shortcut(INSTALL_DIR / exe_rel())
                 self._say("Added a Start menu shortcut.")
             except OSError as e:
@@ -480,6 +520,7 @@ def main() -> None:
     api = Api()
     api.window = webview.create_window(APP_NAME, html=HTML, js_api=api, width=700, height=900,
                                        min_size=(600, 620), background_color="#f6f6f8")
+    threading.Thread(target=cleanup_stale, daemon=True).start()
     webview.start(private_mode=True)
 
 
